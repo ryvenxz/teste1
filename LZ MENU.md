@@ -1,28 +1,33 @@
--- LZ MENU EN | Local/Aim/Visuals/Misc/Config | KEY
+-- LZ MENU EN | Misc Optimize moderado
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 pcall(function() RunService:UnbindFromRenderStep("LZ_Aim") end)
 
 local FIXED_KEY = "K7X9-MQ2P-V8RN-4TLC-Z6WF"
+local KEY_LINK = "https://link-target.net/9250743/UXxvFUtKAfId"
 local Unlocked = false
-local Toggles = {ESPEnemies=false, AimAssist=false, ShowFOV=true, ShowFPS=false, VisibleCheck=true, DeadCheck=true, TeamCheck=true, InfJump=false, Noclip=false, Fly=false}
+local Toggles = {ESPEnemies=false, ShowNames=false, AimAssist=false, ShowFOV=true, ShowFPS=false, VisibleCheck=true, DeadCheck=true, TeamCheck=true, InfJump=false, Noclip=false, Fly=false, Optimize=false}
 local FOV = 300
 local FOV_MIN, FOV_MAX = 50, 1000
 local WalkSpeed = 16
 local JumpPower = 50
 local FlySpeed = 50
+local ESPColor = Color3.fromRGB(255,0,0)
+local ESPTrans = 30
 local ACCENT = Color3.fromRGB(0,140,255)
-local ENEMY_COLOR = Color3.fromRGB(255,0,0)
 local ACCENT_DARK = Color3.fromRGB(12,32,68)
 local ToggleUI = {}
 local Configs = {}
 local SelectedConfig = nil
 local AutoloadConfig = nil
 local CONFIG_FILE = "LZ_Configs.json"
+local SavedOpt = nil
 local function tween(o,p,t) TweenService:Create(o,TweenInfo.new(t or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),p):Play() end
 local function norm(s)
   s = tostring(s or ""):lower()
@@ -104,22 +109,111 @@ local function setCollision(noclipOn)
     end
   end
 end
+local function ensureName(c)
+  local head = c:FindFirstChild("Head")
+  if not head then return end
+  local bb = head:FindFirstChild("DevName")
+  if bb then return bb end
+  bb = Instance.new("BillboardGui", head)
+  bb.Name = "DevName"
+  bb.Size = UDim2.new(0,120,0,36)
+  bb.StudsOffset = Vector3.new(0,2.2,0)
+  bb.AlwaysOnTop = true
+  local tl = Instance.new("TextLabel", bb)
+  tl.Size = UDim2.new(1,0,1,0)
+  tl.BackgroundTransparency = 1
+  tl.Font = Enum.Font.GothamBold
+  tl.TextSize = 13
+  tl.TextColor3 = Color3.new(1,1,1)
+  tl.TextStrokeTransparency = 0
+  return bb
+end
+local function setOptimize(on)
+  if on then
+    if SavedOpt then return end
+    SavedOpt = {effects={}, parts={}, terrain={}, lighting={}}
+    for _,v in pairs(Lighting:GetChildren()) do
+      if v:IsA("BloomEffect") or v:IsA("SunRaysEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("BlurEffect") then
+        SavedOpt.effects[v] = v.Enabled
+        v.Enabled = false
+      elseif v:IsA("Atmosphere") then
+        SavedOpt.effects[v] = {Density=v.Density, Haze=v.Haze, Glare=v.Glare}
+        v.Density = math.min(v.Density, 0.3)
+        v.Haze = math.min(v.Haze, 2)
+        v.Glare = math.min(v.Glare, 2)
+      end
+    end
+    SavedOpt.lighting.Shadows = Lighting.GlobalShadows
+    local t = workspace:FindFirstChildOfClass("Terrain")
+    if t then
+      SavedOpt.terrain.WaterWaveSize = t.WaterWaveSize
+      SavedOpt.terrain.WaterWaveSpeed = t.WaterWaveSpeed
+      SavedOpt.terrain.WaterReflectance = t.WaterReflectance
+      SavedOpt.terrain.Decoration = t.Decoration
+      t.WaterWaveSize = 0
+      t.WaterWaveSpeed = 0
+      t.WaterReflectance = 0
+      if t.Decoration then
+        pcall(function() t.Decoration = false end)
+      end
+    end
+    for _,d in pairs(workspace:GetDescendants()) do
+      if d:IsA("ParticleEmitter") then
+        if d.Rate > 25 then
+          SavedOpt.parts[d] = d.Rate
+          d.Rate = 25
+        end
+      elseif d:IsA("Trail") then
+        if d.Enabled and d.Lifetime > 0.5 then
+          SavedOpt.parts[d] = d.Lifetime
+          d.Lifetime = 0.5
+        end
+      elseif d:IsA("BasePart") and not Players:GetPlayerFromCharacter(d:FindFirstAncestorOfClass("Model")) then
+        if d.Size.Magnitude < 4 and d.CastShadow then
+          SavedOpt.parts[d] = "shadow"
+          d.CastShadow = false
+        end
+      end
+    end
+    pcall(function()
+      UserSettings():GetService("UserGameSettings").SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel10
+    end)
+  else
+    if not SavedOpt then return end
+    for obj,v in pairs(SavedOpt.effects) do
+      if obj and obj.Parent then
+        if typeof(v) == "boolean" then pcall(function() obj.Enabled = v end)
+        elseif typeof(v) == "table" then pcall(function() obj.Density = v.Density obj.Haze = v.Haze obj.Glare = v.Glare end) end
+      end
+    end
+    if SavedOpt.lighting.Shadows ~= nil then pcall(function() Lighting.GlobalShadows = SavedOpt.lighting.Shadows end) end
+    local t = workspace:FindFirstChildOfClass("Terrain")
+    if t then
+      pcall(function()
+        if SavedOpt.terrain.WaterWaveSize then t.WaterWaveSize = SavedOpt.terrain.WaterWaveSize end
+        if SavedOpt.terrain.WaterWaveSpeed then t.WaterWaveSpeed = SavedOpt.terrain.WaterWaveSpeed end
+        if SavedOpt.terrain.WaterReflectance then t.WaterReflectance = SavedOpt.terrain.WaterReflectance end
+        if SavedOpt.terrain.Decoration ~= nil then t.Decoration = SavedOpt.terrain.Decoration end
+      end)
+    end
+    for obj,v in pairs(SavedOpt.parts) do
+      if obj and obj.Parent then
+        if obj:IsA("ParticleEmitter") and typeof(v) == "number" then pcall(function() obj.Rate = v end)
+        elseif obj:IsA("Trail") and typeof(v) == "number" then pcall(function() obj.Lifetime = v end)
+        elseif obj:IsA("BasePart") and v == "shadow" then pcall(function() obj.CastShadow = true end) end
+      end
+    end
+    SavedOpt = nil
+  end
+end
 local function snapshot()
-  return {Toggles={ESPEnemies=Toggles.ESPEnemies,AimAssist=Toggles.AimAssist,ShowFOV=Toggles.ShowFOV,ShowFPS=Toggles.ShowFPS,VisibleCheck=Toggles.VisibleCheck,DeadCheck=Toggles.DeadCheck,TeamCheck=Toggles.TeamCheck,InfJump=Toggles.InfJump,Noclip=Toggles.Noclip,Fly=Toggles.Fly}, FOV=FOV, WalkSpeed=WalkSpeed, JumpPower=JumpPower, FlySpeed=FlySpeed}
+  return {Toggles={ESPEnemies=Toggles.ESPEnemies,ShowNames=Toggles.ShowNames,AimAssist=Toggles.AimAssist,ShowFOV=Toggles.ShowFOV,ShowFPS=Toggles.ShowFPS,VisibleCheck=Toggles.VisibleCheck,DeadCheck=Toggles.DeadCheck,TeamCheck=Toggles.TeamCheck,InfJump=Toggles.InfJump,Noclip=Toggles.Noclip,Fly=Toggles.Fly,Optimize=Toggles.Optimize}, FOV=FOV, WalkSpeed=WalkSpeed, JumpPower=JumpPower, FlySpeed=FlySpeed, ESPColor={ESPColor.R,ESPColor.G,ESPColor.B}, ESPTrans=ESPTrans}
 end
 local function saveFile()
-  pcall(function()
-    if writefile then writefile(CONFIG_FILE, HttpService:JSONEncode({configs=Configs, autoload=AutoloadConfig})) end
-  end)
+  pcall(function() if writefile then writefile(CONFIG_FILE, HttpService:JSONEncode({configs=Configs, autoload=AutoloadConfig})) end end)
 end
 local function loadFile()
-  pcall(function()
-    if readfile and isfile and isfile(CONFIG_FILE) then
-      local d = HttpService:JSONDecode(readfile(CONFIG_FILE))
-      if d.configs then Configs = d.configs end
-      if d.autoload then AutoloadConfig = d.autoload end
-    end
-  end)
+  pcall(function() if readfile and isfile and isfile(CONFIG_FILE) then local d = HttpService:JSONDecode(readfile(CONFIG_FILE)) if d.configs then Configs = d.configs end if d.autoload then AutoloadConfig = d.autoload end end end)
 end
 loadFile()
 
@@ -148,10 +242,9 @@ fpsLabel.TextSize = 13
 fpsLabel.Text = "FPS: --"
 fpsLabel.Visible = false
 Instance.new("UICorner", fpsLabel).CornerRadius = UDim.new(0,8)
-
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0,440,0,560)
-main.Position = UDim2.new(0,20,0,30)
+main.Position = UDim2.new(0,20,0,20)
 main.BackgroundColor3 = Color3.fromRGB(0,0,0)
 main.Active = true
 main.Parent = gui
@@ -200,7 +293,6 @@ do
   UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - ds main.Position = UDim2.new(sp.X.Scale, sp.X.Offset+d.X, sp.Y.Scale, sp.Y.Offset+d.Y) end end)
   UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 end
-
 local side = Instance.new("Frame", main)
 side.Size = UDim2.new(0,120,1,-64)
 side.Position = UDim2.new(0,8,0,58)
@@ -234,7 +326,7 @@ local pageCfg = newPage("Cfg")
 local tabs = {}
 local function makeTab(name, icon, page)
   local b = Instance.new("TextButton", side)
-  b.Size = UDim2.new(1,0,0,36)
+  b.Size = UDim2.new(1,0,0,34)
   b.AutoButtonColor = false
   b.BackgroundColor3 = Color3.fromRGB(12,12,18)
   b.Text = ""
@@ -249,11 +341,7 @@ local function makeTab(name, icon, page)
   tabs[name] = {btn=b, page=page}
   b.MouseButton1Click:Connect(function()
     if not Unlocked then return end
-    for n,t in pairs(tabs) do
-      local sel = (n == name)
-      t.page.Visible = sel
-      tween(t.btn, {BackgroundColor3 = sel and ACCENT_DARK or Color3.fromRGB(12,12,18)}, 0.18)
-    end
+    for n,t in pairs(tabs) do local sel = (n == name) t.page.Visible = sel tween(t.btn, {BackgroundColor3 = sel and ACCENT_DARK or Color3.fromRGB(12,12,18)}, 0.18) end
   end)
 end
 makeTab("Localplayer","🏃",pageLocal)
@@ -262,14 +350,12 @@ makeTab("Visuals","◉",pageVis)
 makeTab("Misc","⚙",pageMisc)
 makeTab("Config","💾",pageCfg)
 tabs["Localplayer"].page.Visible = true
-
 local Boxes = {}
 local function refreshToggleVisual(key)
   local u = ToggleUI[key]
   if not u then return end
-  local on = Toggles[key]
-  tween(u.sw, {BackgroundColor3 = on and ACCENT or Color3.fromRGB(40,40,55)}, 0.15)
-  tween(u.knob, {Position = on and UDim2.new(1,-21,0.5,-9) or UDim2.new(0,3,0.5,-9)}, 0.15)
+  tween(u.sw, {BackgroundColor3 = Toggles[key] and ACCENT or Color3.fromRGB(40,40,55)}, 0.15)
+  tween(u.knob, {Position = Toggles[key] and UDim2.new(1,-21,0.5,-9) or UDim2.new(0,3,0.5,-9)}, 0.15)
 end
 local function refreshAllVisuals()
   for k,_ in pairs(ToggleUI) do refreshToggleVisual(k) end
@@ -277,14 +363,15 @@ local function refreshAllVisuals()
     if k == "FOV" then b.Text = tostring(FOV)
     elseif k == "WS" then b.Text = tostring(WalkSpeed)
     elseif k == "JP" then b.Text = tostring(JumpPower)
-    elseif k == "FS" then b.Text = tostring(FlySpeed) end
+    elseif k == "FS" then b.Text = tostring(FlySpeed)
+    elseif k == "ET" then b.Text = tostring(ESPTrans) end
   end
   circle.Size = UDim2.fromOffset(FOV*2, FOV*2)
   fpsLabel.Visible = Toggles.ShowFPS
 end
 local function makeToggle(parent,label,key,onChange)
   local row = Instance.new("TextButton", parent)
-  row.Size = UDim2.new(1,0,0,44)
+  row.Size = UDim2.new(1,0,0,42)
   row.AutoButtonColor = false
   row.BackgroundColor3 = Color3.fromRGB(10,10,16)
   row.Text = ""
@@ -319,7 +406,7 @@ local function makeToggle(parent,label,key,onChange)
 end
 local function pillRow(parent, label, unit, getV, setV, boxKey)
   local r = Instance.new("Frame", parent)
-  r.Size = UDim2.new(1,0,0,44)
+  r.Size = UDim2.new(1,0,0,42)
   r.BackgroundColor3 = Color3.fromRGB(18,18,24)
   Instance.new("UICorner", r).CornerRadius = UDim.new(0,8)
   local a = Instance.new("TextLabel", r)
@@ -329,7 +416,7 @@ local function pillRow(parent, label, unit, getV, setV, boxKey)
   a.TextXAlignment = Enum.TextXAlignment.Left
   a.Text = label
   a.Font = Enum.Font.Gotham
-  a.TextSize = 13
+  a.TextSize = 12
   a.TextColor3 = Color3.fromRGB(200,200,220)
   local pill = Instance.new("Frame", r)
   pill.Size = UDim2.new(0,120,0,28)
@@ -356,14 +443,22 @@ local function pillRow(parent, label, unit, getV, setV, boxKey)
   lb.TextColor3 = Color3.new(1,1,1)
   box.FocusLost:Connect(function(e) if e and Unlocked then setV(tonumber(box.Text) or getV()) box.Text = tostring(getV()) end end)
 end
-
+local function sectionL(parent, t)
+  local l = Instance.new("TextLabel", parent)
+  l.Size = UDim2.new(1,0,0,16)
+  l.BackgroundTransparency = 1
+  l.TextXAlignment = Enum.TextXAlignment.Left
+  l.Text = t
+  l.Font = Enum.Font.GothamBold
+  l.TextSize = 11
+  l.TextColor3 = Color3.fromRGB(120,170,220)
+end
 pillRow(pageLocal,"Walkspeed","Speed", function() return WalkSpeed end, function(v) WalkSpeed = math.clamp(math.floor(v),0,500) local h = myHum() if h then h.WalkSpeed = WalkSpeed end end, "WS")
 pillRow(pageLocal,"Jump Power","Power", function() return JumpPower end, function(v) JumpPower = math.clamp(math.floor(v),0,500) local h = myHum() if h then if h.UseJumpPower then h.JumpPower = JumpPower else h.JumpHeight = JumpPower/7 end end end, "JP")
 makeToggle(pageLocal,"Infinite Jump","InfJump")
 makeToggle(pageLocal,"Noclip","Noclip", function(on) if not on then setCollision(false) end end)
 makeToggle(pageLocal,"Fly","Fly")
 pillRow(pageLocal,"Fly Speed","Speed", function() return FlySpeed end, function(v) FlySpeed = math.clamp(math.floor(v),1,300) end, "FS")
-
 makeToggle(pageAim,"Aim Assist (RMB)","AimAssist")
 makeToggle(pageAim,"Show FOV","ShowFOV")
 makeToggle(pageAim,"Visible Check","VisibleCheck")
@@ -378,9 +473,42 @@ statusL.Font = Enum.Font.Code
 statusL.TextSize = 11
 statusL.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", statusL).CornerRadius = UDim.new(0,8)
-makeToggle(pageVis,"Enemy ESP [red]","ESPEnemies", function() refreshESP() end)
+sectionL(pageVis, "ESP")
+makeToggle(pageVis,"Enemy ESP","ESPEnemies", function() refreshESP() end)
+makeToggle(pageVis,"Show Names","ShowNames", function() refreshESP() end)
+sectionL(pageVis, "Color")
+local colorRow = Instance.new("Frame", pageVis)
+colorRow.Size = UDim2.new(1,0,0,40)
+colorRow.BackgroundColor3 = Color3.fromRGB(10,10,16)
+Instance.new("UICorner", colorRow).CornerRadius = UDim.new(0,8)
+local clist = Instance.new("UIListLayout", colorRow)
+clist.FillDirection = Enum.FillDirection.Horizontal
+clist.Padding = UDim.new(0,6)
+clist.HorizontalAlignment = Enum.HorizontalAlignment.Center
+clist.VerticalAlignment = Enum.VerticalAlignment.Center
+local COLORS = {{n="Red", c=Color3.fromRGB(255,0,0)}, {n="Blue", c=Color3.fromRGB(0,140,255)}, {n="Green", c=Color3.fromRGB(0,255,120)}, {n="Yellow", c=Color3.fromRGB(255,210,0)}, {n="Purple", c=Color3.fromRGB(170,80,255)}, {n="White", c=Color3.new(1,1,1)}}
+for _,e in pairs(COLORS) do
+  local b = Instance.new("TextButton", colorRow)
+  b.Size = UDim2.new(0,32,0,28)
+  b.BackgroundColor3 = e.c
+  b.Text = ""
+  Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
+  b.MouseButton1Click:Connect(function() if not Unlocked then return end ESPColor = e.c refreshESP() end)
+end
+sectionL(pageVis, "Thickness")
+pillRow(pageVis,"Fill transparency","0-100", function() return ESPTrans end, function(v) ESPTrans = math.clamp(math.floor(v),0,95) refreshESP() end, "ET")
+sectionL(pageMisc, "Performance")
 makeToggle(pageMisc,"Show FPS","ShowFPS")
-
+makeToggle(pageMisc,"Optimize Graphics","Optimize", function(on) setOptimize(on) end)
+local optInfo = Instance.new("TextLabel", pageMisc)
+optInfo.Size = UDim2.new(1,0,0,50)
+optInfo.BackgroundColor3 = Color3.fromRGB(10,10,16)
+optInfo.TextWrapped = true
+optInfo.Text = "Light boost: no shadows off, keeps textures. Disables bloom/rays, lowers particles and water."
+optInfo.Font = Enum.Font.Gotham
+optInfo.TextSize = 11
+optInfo.TextColor3 = Color3.fromRGB(140,140,160)
+Instance.new("UICorner", optInfo).CornerRadius = UDim.new(0,8)
 local cfgName = Instance.new("TextBox", pageCfg)
 cfgName.Size = UDim2.new(1,0,0,40)
 cfgName.PlaceholderText = "Config name..."
@@ -392,7 +520,7 @@ cfgName.TextSize = 13
 Instance.new("UICorner", cfgName).CornerRadius = UDim.new(0,8)
 local function cfgBtn(label, fn)
   local b = Instance.new("TextButton", pageCfg)
-  b.Size = UDim2.new(1,0,0,38)
+  b.Size = UDim2.new(1,0,0,36)
   b.Text = label
   b.Font = Enum.Font.GothamBold
   b.TextSize = 12
@@ -403,7 +531,7 @@ local function cfgBtn(label, fn)
   return b
 end
 local cfgList = Instance.new("ScrollingFrame", pageCfg)
-cfgList.Size = UDim2.new(1,0,0,200)
+cfgList.Size = UDim2.new(1,0,0,180)
 cfgList.BackgroundColor3 = Color3.fromRGB(8,8,12)
 cfgList.ScrollBarThickness = 2
 cfgList.CanvasSize = UDim2.new(0,0,0,0)
@@ -417,9 +545,12 @@ local function applyData(d)
   if d.WalkSpeed then WalkSpeed = math.clamp(d.WalkSpeed,0,500) end
   if d.JumpPower then JumpPower = math.clamp(d.JumpPower,0,500) end
   if d.FlySpeed then FlySpeed = math.clamp(d.FlySpeed,1,300) end
+  if d.ESPColor then pcall(function() ESPColor = Color3.new(d.ESPColor[1],d.ESPColor[2],d.ESPColor[3]) end) end
+  if d.ESPTrans then ESPTrans = math.clamp(d.ESPTrans,0,95) end
   local h = myHum()
   if h then h.WalkSpeed = WalkSpeed if h.UseJumpPower then h.JumpPower = JumpPower else h.JumpHeight = JumpPower/7 end end
   if not Toggles.Noclip then setCollision(false) end
+  if Toggles.Optimize then setOptimize(true) else setOptimize(false) end
   refreshAllVisuals()
   refreshESP()
 end
@@ -451,28 +582,10 @@ cfgBtn("Create config", function()
   refreshList()
 end)
 cfgBtn("Refresh list", function() refreshList() end)
-cfgBtn("Overwrite config", function()
-  if not SelectedConfig then return end
-  Configs[SelectedConfig] = snapshot()
-  saveFile()
-  refreshList()
-end)
-cfgBtn("Set as autoload", function()
-  if not SelectedConfig then return end
-  AutoloadConfig = SelectedConfig
-  saveFile()
-  refreshList()
-end)
-cfgBtn("Delete config", function()
-  if not SelectedConfig then return end
-  Configs[SelectedConfig] = nil
-  if AutoloadConfig == SelectedConfig then AutoloadConfig = nil end
-  SelectedConfig = nil
-  saveFile()
-  refreshList()
-end)
+cfgBtn("Overwrite config", function() if not SelectedConfig then return end Configs[SelectedConfig] = snapshot() saveFile() refreshList() end)
+cfgBtn("Set as autoload", function() if not SelectedConfig then return end AutoloadConfig = SelectedConfig saveFile() refreshList() end)
+cfgBtn("Delete config", function() if not SelectedConfig then return end Configs[SelectedConfig] = nil if AutoloadConfig == SelectedConfig then AutoloadConfig = nil end SelectedConfig = nil saveFile() refreshList() end)
 refreshList()
-
 local hidden = false
 local rmbHeld = false
 local flyK = {W=false,A=false,S=false,D=false,Up=false,Down=false}
@@ -502,9 +615,7 @@ UserInputService.InputEnded:Connect(function(inp)
   if inp.KeyCode == Enum.KeyCode.Space then flyK.Up = false end
   if inp.KeyCode == Enum.KeyCode.LeftShift then flyK.Down = false end
 end)
-UserInputService.JumpRequest:Connect(function()
-  if Unlocked and Toggles.InfJump then local h = myHum() if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end
-end)
+UserInputService.JumpRequest:Connect(function() if Unlocked and Toggles.InfJump then local h = myHum() if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end)
 LocalPlayer.CharacterAdded:Connect(function(c)
   c:WaitForChild("Humanoid", 10)
   task.wait(0.3)
@@ -516,19 +627,49 @@ end)
 local function clearAllESP()
   for _,m in pairs(workspace:GetDescendants()) do
     if m:IsA("Highlight") and m.Name == "DevESP" then m:Destroy() end
+    if m:IsA("BillboardGui") and m.Name == "DevName" then m:Destroy() end
   end
 end
 local function applyESP(c)
   if not Unlocked or not Toggles.ESPEnemies then return end
-  if c == LocalPlayer.Character or not getESPPart(c) or isSameRole(c) then local h = c:FindFirstChild("DevESP") if h then h:Destroy() end return end
-  if c:FindFirstChild("DevESP") then return end
-  local hl = Instance.new("Highlight")
-  hl.Name = "DevESP" hl.FillTransparency = 0.3 hl.FillColor = ENEMY_COLOR
-  hl.OutlineColor = Color3.new(1,1,1) hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop hl.Parent = c
+  if c == LocalPlayer.Character or not getESPPart(c) or isSameRole(c) then
+    local h = c:FindFirstChild("DevESP") if h then h:Destroy() end
+    local head = c:FindFirstChild("Head")
+    if head then local bb = head:FindFirstChild("DevName") if bb then bb:Destroy() end end
+    return
+  end
+  local ex = c:FindFirstChild("DevESP")
+  if not ex then
+    ex = Instance.new("Highlight")
+    ex.Name = "DevESP"
+    ex.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    ex.Parent = c
+  end
+  ex.FillColor = ESPColor
+  ex.OutlineColor = Color3.new(1,1,1)
+  ex.FillTransparency = ESPTrans/100
+  local head = c:FindFirstChild("Head")
+  if Toggles.ShowNames and head then
+    local bb = ensureName(c)
+    local plr = Players:GetPlayerFromCharacter(c)
+    local d = 0
+    pcall(function() d = math.floor((workspace.CurrentCamera.CFrame.Position - head.Position).Magnitude) end)
+    bb:FindFirstChildOfClass("TextLabel").Text = (plr and plr.Name or c.Name).." ["..d.."m]"
+    bb:FindFirstChildOfClass("TextLabel").TextColor3 = ESPColor
+  else
+    if head then local bb = head:FindFirstChild("DevName") if bb then bb:Destroy() end end
+  end
 end
 function refreshESP()
   if not Unlocked then return end
-  if not Toggles.ESPEnemies then clearAllESP() return end
+  if not Toggles.ESPEnemies then
+    for _,c in pairs(getAllESPTargets()) do
+      local h = c:FindFirstChild("DevESP") if h then h:Destroy() end
+      local hd = c:FindFirstChild("Head")
+      if hd then local bb = hd:FindFirstChild("DevName") if bb then bb:Destroy() end end
+    end
+    return
+  end
   for _,c in pairs(getAllESPTargets()) do applyESP(c) end
 end
 local function hookP(p)
@@ -583,6 +724,9 @@ RunService.RenderStepped:Connect(function()
   if not Unlocked then return end
   circle.Size = UDim2.fromOffset(FOV*2, FOV*2)
   if not hidden then circle.Visible = Toggles.ShowFOV and Toggles.AimAssist end
+  if Toggles.ESPEnemies and Toggles.ShowNames then
+    for _,c in pairs(getAllESPTargets()) do if c:FindFirstChild("DevESP") then applyESP(c) end end
+  end
 end)
 RunService:BindToRenderStep("LZ_Aim", Enum.RenderPriority.Last.Value, function()
   if not Unlocked then return end
@@ -597,12 +741,13 @@ RunService:BindToRenderStep("LZ_Aim", Enum.RenderPriority.Last.Value, function()
   cam.CFrame = goal
   cam.Focus = CFrame.new(target.Position)
 end)
-
 local keyF = Instance.new("Frame", gui)
-keyF.Size = UDim2.new(0,300,0,200)
-keyF.Position = UDim2.new(0.5,-150,0.5,-100)
+keyF.Size = UDim2.new(0,340,0,230)
+keyF.Position = UDim2.new(0.5,-170,0.5,-115)
 keyF.BackgroundColor3 = Color3.fromRGB(0,0,0)
 Instance.new("UICorner", keyF).CornerRadius = UDim.new(0,12)
+local kst = Instance.new("UIStroke", keyF)
+kst.Color = ACCENT
 local kt = Instance.new("TextLabel", keyF)
 kt.Size = UDim2.new(1,0,0,40)
 kt.BackgroundTransparency = 1
@@ -618,20 +763,30 @@ kb.Text = ""
 kb.BackgroundColor3 = Color3.fromRGB(12,12,18)
 kb.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", kb).CornerRadius = UDim.new(0,8)
-local kbtn = Instance.new("TextButton", keyF)
-kbtn.Size = UDim2.new(1,-30,0,40)
-kbtn.Position = UDim2.new(0,15,0,105)
-kbtn.Text = "UNLOCK"
-kbtn.Font = Enum.Font.GothamBold
-kbtn.TextSize = 13
-kbtn.BackgroundColor3 = ACCENT_DARK
-kbtn.TextColor3 = ACCENT
-Instance.new("UICorner", kbtn).CornerRadius = UDim.new(0,8)
+local getB = Instance.new("TextButton", keyF)
+getB.Size = UDim2.new(0.5,-22,0,40)
+getB.Position = UDim2.new(0,15,0,105)
+getB.Text = "GET KEY"
+getB.Font = Enum.Font.GothamBold
+getB.TextSize = 13
+getB.BackgroundColor3 = Color3.fromRGB(18,28,48)
+getB.TextColor3 = ACCENT
+Instance.new("UICorner", getB).CornerRadius = UDim.new(0,8)
+local checkB = Instance.new("TextButton", keyF)
+checkB.Size = UDim2.new(0.5,-22,0,40)
+checkB.Position = UDim2.new(0.5,7,0,105)
+checkB.Text = "CHECK KEY"
+checkB.Font = Enum.Font.GothamBold
+checkB.TextSize = 13
+checkB.BackgroundColor3 = ACCENT_DARK
+checkB.TextColor3 = ACCENT
+Instance.new("UICorner", checkB).CornerRadius = UDim.new(0,8)
 local km = Instance.new("TextLabel", keyF)
-km.Size = UDim2.new(1,-30,0,20)
+km.Size = UDim2.new(1,-30,0,40)
 km.Position = UDim2.new(0,15,0,150)
 km.BackgroundTransparency = 1
 km.Text = ""
+km.TextWrapped = true
 km.Font = Enum.Font.Gotham
 km.TextSize = 11
 km.TextColor3 = Color3.fromRGB(255,90,90)
@@ -641,15 +796,17 @@ local function unlock()
   keyF:Destroy()
   main.Visible = true
   tween(scale, {Scale=1}, 0.25)
-  if AutoloadConfig and Configs[AutoloadConfig] then
-    SelectedConfig = AutoloadConfig
-    applyData(Configs[AutoloadConfig])
-    refreshList()
-  end
+  if AutoloadConfig and Configs[AutoloadConfig] then SelectedConfig = AutoloadConfig applyData(Configs[AutoloadConfig]) refreshList() end
   refreshESP()
 end
 local function tryK(k)
   k = tostring(k or ""):gsub("%s+",""):upper()
   if k == string.upper(FIXED_KEY) then unlock() else km.Text = "Invalid key!" end
 end
-kbtn.MouseButton1Click:Connect(function() tryK(kb.Text) end)
+checkB.MouseButton1Click:Connect(function() tryK(kb.Text) end)
+getB.MouseButton1Click:Connect(function()
+  pcall(function() if setclipboard then setclipboard(KEY_LINK) end end)
+  pcall(function() GuiService:OpenBrowserWindow(KEY_LINK) end)
+  km.TextColor3 = ACCENT
+  km.Text = "Link copied! Complete Linkvertise to get key."
+end)
